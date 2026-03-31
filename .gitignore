@@ -1,4 +1,5 @@
 import struct
+import pickle # Added import for pickle module
 
 class Student:
     def __init__(self):
@@ -56,7 +57,8 @@ class Student:
         with open("student.dat", "ab") as fp:
             st = Student()
             st.get_data()
-            fp.write(st.__dict__)
+            # Use pickle.dump to serialize the object and write it to the file
+            pickle.dump(st, fp)
         print("\n\nstudent record has been created ")
 
     def display_all(self):
@@ -64,14 +66,13 @@ class Student:
         try:
             with open("student.dat", "rb") as fp:
                 while True:
-                    st_data = fp.read(172)  # Assuming 172 bytes is the size of the serialized Student object
-                    if not st_data:
-                        break
-                    st = Student()
-                    st.__dict__ = st_data
-                    st.show_data()
-                    print("\n\n====================================\n")
-                    input("Press Enter to continue...")
+                    try:
+                        st = pickle.load(fp) # Use pickle.load to deserialize the object
+                        st.show_data()
+                        print("\n\n====================================\n")
+                        input("Press Enter to continue...")
+                    except EOFError:
+                        break # Break loop when end of file is reached
         except FileNotFoundError:
             print("File not found.")
         except Exception as e:
@@ -83,14 +84,14 @@ def display_sp(n):
     try:
         with open("student.dat", "rb") as fp:
             while True:
-                st_data = fp.read(172)
-                if not st_data:
-                    break
-                st = Student()
-                st.__dict__ = st_data
-                if st.ret_rollno() == n:
-                    st.show_data()
-                    flag = 1
+                try:
+                    st = pickle.load(fp) # Use pickle.load to deserialize the object
+                    if st.ret_rollno() == n:
+                        st.show_data()
+                        flag = 1
+                        break # Found the record, can exit loop
+                except EOFError:
+                    break # Break loop when end of file is reached
     except FileNotFoundError:
         print("File not found.")
     except Exception as e:
@@ -104,55 +105,66 @@ def modify_student():
     no, found = 0, 0
     print("\n\n\tTo Modify ")
     no = int(input("\n\n\tPlease Enter The roll number of student: "))
+    records = [] # Store all records in a list
     try:
-        with open("student.dat", "rb+") as fp:
+        with open("student.dat", "rb") as fp:
             while True:
-                st_data = fp.read(172)
-                if not st_data:
-                    break
-                st = Student()
-                st.__dict__ = st_data
-                if st.ret_rollno() == no:
-                    st.show_data()
-                    print("\nPlease Enter The New Details of student")
-                    st.get_data()
-                    pos = -172
-                    fp.seek(pos, 1)
-                    fp.write(st.__dict__)
-                    print("\n\n\t Record Updated")
-                    found = 1
+                try:
+                    st = pickle.load(fp)
+                    records.append(st)
+                except EOFError:
                     break
     except FileNotFoundError:
         print("File not found.")
-    except Exception as e:
-        print("An error occurred:", e)
+        input("Press Enter to continue...")
+        return
+
+    for i, st in enumerate(records):
+        if st.ret_rollno() == no:
+            st.show_data()
+            print("\nPlease Enter The New Details of student")
+            st.get_data()
+            records[i] = st # Update the student object in the list
+            found = 1
+            print("\n\n\t Record Updated")
+            break
 
     if found == 0:
         print("\n\n Record Not Found ")
+    else:
+        # Rewrite the entire file with updated records
+        with open("student.dat", "wb") as fp:
+            for st in records:
+                pickle.dump(st, fp)
+
     input("Press Enter to continue...")
 
 def delete_student():
     no = 0
     print("\n\n\n\tDelete Record")
     no = int(input("\n\nPlease Enter The roll number of student You Want To Delete: "))
+    found = 0
+    updated_records = []
     try:
-        with open("student.dat", "rb+") as fp:
-            with open("Temp.dat", "wb") as fp2:
-                fp.seek(0)
-                while True:
-                    st_data = fp.read(172)
-                    if not st_data:
-                        break
-                    st = Student()
-                    st.__dict__ = st_data
+        with open("student.dat", "rb") as fp:
+            while True:
+                try:
+                    st = pickle.load(fp)
                     if st.ret_rollno() != no:
-                        fp2.write(st_data)
-                fp2.close()
-                fp.close()
-                import os
-                os.remove("student.dat")
-                os.rename("Temp.dat", "student.dat")
-                print("\n\n\tRecord Deleted ..")
+                        updated_records.append(st)
+                    else:
+                        found = 1
+                except EOFError:
+                    break
+        
+        if found:
+            with open("student.dat", "wb") as fp_out:
+                for st in updated_records:
+                    pickle.dump(st, fp_out)
+            print("\n\n\tRecord Deleted ..")
+        else:
+            print("\n\n Record Not Found ")
+            
     except FileNotFoundError:
         print("File not found.")
     except Exception as e:
@@ -167,12 +179,11 @@ def class_result():
             print("Roll No. Name          P  C  M  E  CS  %age Grade")
             print("====================================================")
             while True:
-                st_data = fp.read(172)
-                if not st_data:
-                    break
-                st = Student()
-                st.__dict__ = st_data
-                st.show_tabular()
+                try:
+                    st = pickle.load(fp) # Use pickle.load to deserialize the object
+                    st.show_tabular()
+                except EOFError:
+                    break # Break loop when end of file is reached
     except FileNotFoundError:
         print("File not found.")
     except Exception as e:
@@ -224,9 +235,9 @@ while True:
     print("\n\n\t01. RESULT MENU")
     print("\n\n\t02. ENTRY/EDIT MENU")
     print("\n\n\t03. EXIT")
-        
+
     ch = input("\n\n\tPlease Select Your Option (1-3): ")
-    
+
     if ch == '1':
         result()
     elif ch == '2':
